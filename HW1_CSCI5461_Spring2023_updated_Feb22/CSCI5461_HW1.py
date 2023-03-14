@@ -12,12 +12,15 @@ fp_count = open("HW1-GSE62944-count.csv", "r")
 fp_clinic = open("HW1-GSE62944-clinical.csv", "r")
 fp_DESeq = open("HW1-DESeq2.csv","r")
 
-fp_wilcoxon = open("HW1-WilcoxonData.csv", "w")
+# fp_wilcoxon = open("HW1-WilcoxonData.csv", "w")
+fp_wilcoxon = open("HW1-WilcoxonData.csv", "r")
+
 
 
 count = fp_count.readlines()
 clinic = fp_clinic.readlines()
 DESeq = fp_DESeq.readlines()
+wilcoxon = fp_wilcoxon.readlines()
 
 #Global Variables
 
@@ -37,6 +40,11 @@ for index in range(1, len(DESeq)):
     inner_lst = DESeq[index].strip().split(",")
     gl_pvals.append(float(inner_lst[-1]))
 
+gl_wilcoxon = []
+for line in wilcoxon:
+    inner_lst = line.strip().split(",")
+    inner_lst[1] = float(inner_lst[1])
+    gl_wilcoxon.append(inner_lst)
 
 
 #Classes
@@ -387,9 +395,62 @@ def extractGeneList(logMatrix, groups):
         result = stats.ranksums(shortVals, longVals)
         print(result)
         wilcoxonData.append((gene, result.pvalue))
-        fp_wilcoxon.write(f'{gene},{result.pvalue}\n')
+        # fp_wilcoxon.write(f'{gene},{result.pvalue}\n')
 
+def getTopTen():
+    topTen = []
+    max = 0
+    idx = 0
+    for i in range(len(gl_wilcoxon)):
+        if len(topTen)< 10:
+            topTen.append(gl_wilcoxon[i])
+        else:
+            #if we don't have a max val yet, get one
+            if max == 0:
+                for j in range(len(topTen)):
+                    if topTen[j][1] > max:
+                        max = topTen[j][1]
+                        idx = j
+            #we have a max, need to see if new val is less than the max
+            else:
+                #check if we have found a new top ten val
+                if max > gl_wilcoxon[i][1]:
+                    #replace max with the new small value
+                    topTen[idx] = gl_wilcoxon[i]
+                    #find the new max
+                    max = 0
+                    for j in range(len(topTen)):
+                        if topTen[j][1] > max:
+                            max = topTen[j][1]
+                            idx = j
+    return topTen
+            
+            
+def getValidPvals(matrix):
+    retlst = []
+    for i in range(len(matrix)):
+        if matrix[i][1] < 0.05:
+            retlst.append(matrix[i])
+    return retlst
 
+def getValidPvalsDESeq2():
+    #create the list
+    matrix = []
+    for index in range(1, len(DESeq)):
+        inner_lst = DESeq[index].strip().split(",")
+        matrix.append([inner_lst[0], float(inner_lst[-1])])
+    return getValidPvals(matrix)
+
+def findOverlap(lst1, lst2):
+    retlst = []
+    count = 0
+    for i in range(len(lst1)):
+        for j in range(len(lst2)):
+            if lst1[i][0] == lst2[j][0]:
+                retlst.append(lst1[i][0])
+                count+=1
+            
+    return (retlst, count)
 
 def bonferroni():
     count = 0
@@ -463,11 +524,20 @@ def main():
     # # firstFiveQuantile(quantile_normalized)
 
     # createWilcoxonList(quantile_normalized)
+    topTen = getTopTen()
+    # print(topTen)
+    good_pvals_wilcoxon = getValidPvals(gl_wilcoxon)
+    good_pvals_DESeq2 = getValidPvalsDESeq2()
+    print(f'wilcoxon: {len(good_pvals_wilcoxon)}\ndeseq2: {len(good_pvals_DESeq2)}')
+    (overlap, count) = findOverlap(good_pvals_DESeq2, good_pvals_wilcoxon)
+    print(count)
+    # print(overlap)
 
-    x = bonferroni()
-    y = benjaminiHochberg()
-    print(f'bonferroni count: {x}\nBH count: {y}')
-    graphDESeq()
+    # print(good_pvals_wilcoxon)
+    # x = bonferroni()
+    # y = benjaminiHochberg()
+    # print(f'bonferroni count: {x}\nBH count: {y}')
+    # graphDESeq()
 
     # test = [[qtObj("A", 1), qtObj("B", 2), qtObj("C", 3)], [qtObj("D", 4), qtObj("E", 5), qtObj("F", 6)], [qtObj("G", 7), qtObj("H", 8), qtObj("I", 9)]]
     # print(f'original list: {test}')
